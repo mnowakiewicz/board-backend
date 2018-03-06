@@ -1,9 +1,8 @@
-package pl.javasurvival.helloServer;
+package pl.nowakiewicz.helloServer;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 @JsonDeserialize
 public class Message {
