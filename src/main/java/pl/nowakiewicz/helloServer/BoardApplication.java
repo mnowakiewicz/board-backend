@@ -1,5 +1,6 @@
 package pl.nowakiewicz.helloServer;
 
+import io.vavr.control.Option;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.HttpHandler;
 import org.springframework.http.server.reactive.ReactorHttpHandlerAdapter;
@@ -12,8 +13,6 @@ import reactor.ipc.netty.http.server.HttpServer;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 
 
 import static org.springframework.web.reactive.function.BodyInserters.fromObject;
@@ -22,21 +21,25 @@ import static org.springframework.web.reactive.function.server.RequestPredicates
 import static org.springframework.web.reactive.function.server.RequestPredicates.path;
 import static org.springframework.web.reactive.function.server.RouterFunctions.nest;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
-import static org.springframework.http.MediaType.APPLICATION_JSON;
-import static org.springframework.web.reactive.function.server.RequestPredicates.*;
+
 
 public class BoardApplication {
+    private final MessageBoardService messageBoardService = new MessageBoardService();
+
     public static void main(String[] args) {
         new BoardApplication().serve();
 
     }
 
-    private void serve() {
+    public BoardApplication() {
 
+    }
+
+    private void serve() {
         RouterFunction route = nest(path("/api"),
-                    route(GET("/time"), renderTime())
-                    .andRoute(GET("/messages"), renderMessages())
-                    .andRoute(POST("/messages").and(contentType(APPLICATION_JSON)), postMessage()));
+                route(GET("/time"), renderTime())
+                        .andRoute(GET("/messages/{topic}"), renderMessages())
+                        .andRoute(POST("/messages/{topic}"), postMessage()));
 
         HttpHandler httpHandler = RouterFunctions.toHttpHandler(route);
         HttpServer server = HttpServer.create("localhost", 8080);
@@ -46,34 +49,29 @@ public class BoardApplication {
 
     private HandlerFunction<ServerResponse> postMessage() {
         return request -> {
-            final List<Message> messages = new ArrayList<>();
+            Mono<Message> postedMessage = request.bodyToMono(Message.class);
+            return postedMessage.flatMap(message -> {
+                final String topicName = request.pathVariable("topic");
+                final Option<Topic> topicOption = messageBoardService.addMessageToTopic(topicName, message);
+                return messagesOrErrorFromTopic(topicOption);
+            });
 
-            messages.add(new Message("aaa", "bbb"));
-            messages.add(new Message("aaa", "bbb"));
-            messages.add(new Message("ccc", "ddde"));
-            Mono<Message> message = request.bodyToMono(Message.class);
-            final Mono<ServerResponse> res=  message.flatMap( m-> {
-                messages.add(m);
-                return ServerResponse.ok()
-                        .contentType(APPLICATION_JSON)
-                        .body(fromObject(messages));
-            } );
-            return res;
         };
     }
 
     private HandlerFunction<ServerResponse> renderMessages() {
         return request -> {
-            final List<Message> messages = new ArrayList<>();
-            messages.add(new Message("aaa", "bbb"));
-            messages.add(new Message("aaa", "bbb"));
-            messages.add(new Message("ccc", "ddde"));
-
-
-            return ServerResponse.ok()
-                    .contentType(APPLICATION_JSON)
-                    .body(fromObject(messages));
+            final String topicName = request.pathVariable("topic");
+            final Option<Topic> topicOption = messageBoardService.getTopic(topicName);
+            return messagesOrErrorFromTopic(topicOption);
         };
+    }
+
+    private Mono<ServerResponse> messagesOrErrorFromTopic(Option<Topic> topicOption) {
+        return topicOption.map(topic -> ServerResponse.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(fromObject(topic.messages.toJavaList())))
+                .getOrElse(() -> ServerResponse.notFound().build());
     }
 
     private HandlerFunction<ServerResponse> renderTime() {
@@ -86,4 +84,6 @@ public class BoardApplication {
                     .body(fromObject(myFormatter.format(now)));
         };
     }
+
 }
+

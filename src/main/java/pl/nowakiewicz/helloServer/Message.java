@@ -7,11 +7,11 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 @JsonDeserialize
 public class Message {
     public final String author;
-    public final String text;
+    public final String content;
 
     @JsonCreator
-    public Message(@JsonProperty("author")String author, @JsonProperty("text")String text) {
+    public Message(@JsonProperty("author")String author, @JsonProperty("content")String content) {
         this.author = author;
-        this.text = text;
+        this.content = content;
     }
 }
